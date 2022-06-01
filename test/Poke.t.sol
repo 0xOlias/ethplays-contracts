@@ -9,16 +9,15 @@ contract PokeTest is Test {
     Poke poke;
 
     address deployer = address(0);
-    address constant bob = address(1);
-    address constant alice = address(2);
+    address constant alice = address(1);
+    address constant bob = address(2);
+    address constant charlie = address(3);
 
     function setUp() public {
         poke = new Poke();
 
         deployer = address(this);
     }
-
-    // Game contract behavior //
 
     function testInitialGameAddress() public {
         assertEq(poke.gameContract(), address(0));
@@ -41,7 +40,7 @@ contract PokeTest is Test {
         poke.updateGameAddress(bob);
 
         hoax(bob);
-        poke.mint(alice, 1e18);
+        poke.gameMint(alice, 1e18);
         assertEq(poke.balanceOf(alice), 1e18);
     }
 
@@ -51,7 +50,7 @@ contract PokeTest is Test {
 
         hoax(alice);
         vm.expectRevert(Poke.NotAuthorized.selector);
-        poke.mint(alice, 1e18);
+        poke.gameMint(alice, 1e18);
     }
 
     function testBurnAsGameContract() public {
@@ -59,9 +58,9 @@ contract PokeTest is Test {
         poke.updateGameAddress(bob);
 
         hoax(bob);
-        poke.mint(alice, 3e18);
+        poke.gameMint(alice, 3e18);
         hoax(bob);
-        poke.burn(alice, 1e18);
+        poke.gameBurn(alice, 1e18);
         assertEq(poke.balanceOf(alice), 2e18);
     }
 
@@ -71,35 +70,27 @@ contract PokeTest is Test {
 
         hoax(alice);
         vm.expectRevert(Poke.NotAuthorized.selector);
-        poke.burn(alice, 1e18);
+        poke.gameBurn(alice, 1e18);
     }
 
-    // Auction contract behavior //
-
-    function testInitialAuctionAddress() public {
-        assertEq(poke.auctionContract(), address(0));
-    }
-
-    function testUpdateAuctionAddressAsOwner() public {
+    function testTransferAsGameContract() public {
         hoax(deployer);
-        poke.updateAuctionAddress(address(5));
-        assertEq(poke.auctionContract(), address(5));
-    }
+        poke.updateGameAddress(bob);
 
-    function testUpdateAuctionAddressAsNotOwner() public {
         hoax(bob);
-        vm.expectRevert("Ownable: caller is not the owner");
-        poke.updateAuctionAddress(address(5));
+        poke.gameMint(alice, 3e18);
+        hoax(bob);
+        poke.gameTransfer(alice, charlie, 1e18);
+        assertEq(poke.balanceOf(alice), 2e18);
+        assertEq(poke.balanceOf(charlie), 1e18);
     }
 
-    function testAllowanceAsAuctionAddress() public {
+    function testTransferAsNotGameContract() public {
         hoax(deployer);
-        poke.updateAuctionAddress(address(5));
-        assertEq(poke.allowance(alice, address(5)), type(uint256).max);
-    }
+        poke.updateGameAddress(bob);
 
-    function testAllowanceAsNotAuctionAddress() public {
-        hoax(deployer);
-        assertEq(poke.allowance(alice, address(5)), 0);
+        hoax(alice);
+        vm.expectRevert(Poke.NotAuthorized.selector);
+        poke.gameTransfer(alice, charlie, 1e18);
     }
 }

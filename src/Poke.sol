@@ -14,15 +14,12 @@ contract Poke is ERC20, Ownable {
 
     /// @notice Address of the current game contract
     address public gameContract;
-    /// @notice Address of the current auction contract
-    address public auctionContract;
 
     /* -------------------------------------------------------------------------- */
     /*                                   EVENTS                                   */
     /* -------------------------------------------------------------------------- */
 
     event UpdateGameContract(address gameContract);
-    event UpdateAuctionContract(address auctionContract);
 
     /* -------------------------------------------------------------------------- */
     /*                                   ERRORS                                   */
@@ -49,36 +46,39 @@ contract Poke is ERC20, Ownable {
     constructor() ERC20("ethplays", "POKE") {}
 
     /* -------------------------------------------------------------------------- */
-    /*                                 OVERRIDES                                  */
-    /* -------------------------------------------------------------------------- */
-
-    /// @notice Allow auction contract to spend any amount of tokens.
-    function allowance(address owner, address spender)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        if (spender == auctionContract) return type(uint256).max;
-        return super.allowance(owner, spender);
-    }
-
-    /* -------------------------------------------------------------------------- */
     /*                                   GAME                                     */
     /* -------------------------------------------------------------------------- */
 
     /// @notice Mint new tokens to an account. Can only be called by the game contract.
     /// @param account The account to mint tokens to
     /// @param amount The amount of tokens to mint
-    function mint(address account, uint256 amount) external onlyGameContract {
+    function gameMint(address account, uint256 amount)
+        external
+        onlyGameContract
+    {
         _mint(account, amount);
     }
 
     /// @notice Burn existing tokens belonging to an account. Can only be called by the game contract.
     /// @param account The account to burn tokens for
     /// @param amount The amount of tokens to burn
-    function burn(address account, uint256 amount) external onlyGameContract {
+    function gameBurn(address account, uint256 amount)
+        external
+        onlyGameContract
+    {
         _burn(account, amount);
+    }
+
+    /// @notice Transfer tokens without approval. Can only be called by the game contract.
+    /// @param from The account to transfer tokens from
+    /// @param to The account to transfer tokens to
+    /// @param amount The amount of tokens to transfer
+    function gameTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) external onlyGameContract {
+        _transfer(from, to, amount);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -89,11 +89,5 @@ contract Poke is ERC20, Ownable {
     /// @param addr The address of the game contract
     function updateGameAddress(address addr) external onlyOwner {
         gameContract = addr;
-    }
-
-    /// @notice Update the auction contract address. Only owner.
-    /// @param addr The address of the auction contract
-    function updateAuctionAddress(address addr) external onlyOwner {
-        auctionContract = addr;
     }
 }
