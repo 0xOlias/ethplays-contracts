@@ -15,7 +15,6 @@ contract PokeTest is Test {
 
     function setUp() public {
         poke = new Poke();
-
         deployer = address(this);
     }
 

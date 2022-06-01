@@ -40,12 +40,12 @@ contract EthPlays is Ownable {
     uint256 private inputTimestamp;
 
     /// @notice [Parameter] The rate (out of 1000) to remain upon decay
-    uint256 private alignmentDecayRate;
+    uint256 public alignmentDecayRate;
     /// @notice [State] The current alignment value
-    int256 public alignment;
+    int256 private alignment;
 
     /// @notice [Parameter] Number of seconds in the order vote period
-    uint256 private orderDuration;
+    uint256 public orderDuration;
     /// @notice [State] Count of order votes for each button index, by input index
     uint256[8] private orderVotes;
 
@@ -70,26 +70,26 @@ contract EthPlays is Ownable {
     uint256 public rareCandyCost;
 
     /// @notice [Parameter] The number of seconds between banner auctions
-    uint256 private bannerAuctionCooldown;
+    uint256 public bannerAuctionCooldown;
     /// @notice [Parameter] The number of seconds that the banner auction lasts
-    uint256 private bannerAuctionDuration;
+    uint256 public bannerAuctionDuration;
     /// @notice [State] The best bid for the current banner auction
     BannerBid private bestBannerBid;
     /// @notice [State] The block timestamp of the start of the current banner auction
     uint256 private bannerAuctionTimestamp;
 
     /// @notice [Parameter] The number of seconds between control auctions
-    uint256 private controlAuctionCooldown;
+    uint256 public controlAuctionCooldown;
     /// @notice [Parameter] The number of seconds that the control auction lasts
-    uint256 private controlAuctionDuration;
+    uint256 public controlAuctionDuration;
     /// @notice [Parameter] The number of seconds that control lasts
-    uint256 private controlDuration;
+    uint256 public controlDuration;
     /// @notice [State] The best bid for the current control auction
     ControlBid private bestControlBid;
     /// @notice [State] The block timestamp of the start of the current control auction
     uint256 private controlAuctionTimestamp;
     /// @notice [State] The account that has (or most recently had) control
-    address public controlAddress;
+    address private controlAddress;
 
     /* -------------------------------------------------------------------------- */
     /*                                   EVENTS                                   */
@@ -167,16 +167,21 @@ contract EthPlays is Ownable {
 
         isActive = true;
         alignmentDecayRate = 985;
-
         orderDuration = 20;
 
         rewardTierSize = 100;
-        orderReward = 10 * (10**18);
-        chaosReward = 20 * (10**18);
-        chatCost = 10 * (10**18);
-        rareCandyCost = 200 * (10**18);
+        orderReward = 10e18;
+        chaosReward = 20e18;
+        chatCost = 10e18;
+        rareCandyCost = 200e18;
 
+        bannerAuctionCooldown = 120;
+        bannerAuctionDuration = 60;
         bestBannerBid = BannerBid(address(0), 0, "");
+
+        controlAuctionCooldown = 300;
+        controlAuctionDuration = 60;
+        controlDuration = 30;
         bestControlBid = ControlBid(address(0), 0);
     }
 
