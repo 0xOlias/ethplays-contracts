@@ -103,11 +103,15 @@ contract EthPlays is Ownable {
     event InputVote(uint256 inputIndex, address from, uint256 buttonIndex);
     event ButtonInput(uint256 inputIndex, address from, uint256 buttonIndex);
     event Chat(address from, string message);
-    event Banner(address from, string message);
-    event Control(address from);
     event RareCandy(address from, uint256 count);
 
-    // Parameter updates
+    // Auction events
+    event NewBannerBid(address from, uint256 amount, string message);
+    event Banner(address from, string message);
+    event NewControlBid(address from, uint256 amount);
+    event Control(address from);
+
+    // Parameter update events
     event SetIsActive(bool isActive);
     event SetAlignmentDecayRate(uint256 alignmentDecayRate);
     event SetOrderDuration(uint256 orderDuration);
@@ -347,13 +351,16 @@ contract EthPlays is Ownable {
             revert InsufficientBidAmount();
         }
 
-        poke.gameTransfer(
-            address(this),
-            bestBannerBid.from,
-            bestBannerBid.amount
-        );
+        if (bestBannerBid.from != address(0)) {
+            poke.gameTransfer(
+                address(this),
+                bestBannerBid.from,
+                bestBannerBid.amount
+            );
+        }
         poke.gameTransfer(msg.sender, address(this), amount);
         bestBannerBid = BannerBid(msg.sender, amount, message);
+        emit NewBannerBid(msg.sender, amount, message);
     }
 
     /// @notice End the current banner auction and start the cooldown for the next one.
@@ -371,14 +378,9 @@ contract EthPlays is Ownable {
             revert AuctionHasNoBids();
         }
 
-        poke.gameTransfer(
-            address(this),
-            bestBannerBid.from,
-            bestBannerBid.amount
-        );
-        bestBannerBid = BannerBid(address(0), 0, "");
-        bannerAuctionTimestamp = block.timestamp;
         emit Banner(bestBannerBid.from, bestBannerBid.message);
+        bannerAuctionTimestamp = block.timestamp;
+        bestBannerBid = BannerBid(address(0), 0, "");
     }
 
     /// @notice Submit a bid in the active control auction.
@@ -402,13 +404,16 @@ contract EthPlays is Ownable {
             revert InsufficientBidAmount();
         }
 
-        poke.gameTransfer(
-            address(this),
-            bestControlBid.from,
-            bestControlBid.amount
-        );
+        if (bestControlBid.from != address(0)) {
+            poke.gameTransfer(
+                address(this),
+                bestControlBid.from,
+                bestControlBid.amount
+            );
+        }
         poke.gameTransfer(msg.sender, address(this), amount);
         bestControlBid = ControlBid(msg.sender, amount);
+        emit NewControlBid(msg.sender, amount);
     }
 
     /// @notice End the current control auction and start the cooldown for the next one.

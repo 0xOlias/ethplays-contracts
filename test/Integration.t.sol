@@ -29,6 +29,10 @@ contract IntegrationTest is Test {
     // EthPlays events
     event AlignmentVote(address from, bool vote, int256 alignment);
     event ButtonInput(uint256 inputIndex, address from, uint256 buttonIndex);
+    event NewBannerBid(address from, uint256 amount, string message);
+    event Banner(address from, string message);
+    event NewControlBid(address from, uint256 amount);
+    event Control(address from);
 
     function setUp() public {
         deployer = address(this);
@@ -79,14 +83,14 @@ contract IntegrationTest is Test {
     }
 
     function testSubmitAlignmentVoteNotRegistered() public {
-        hoax(alice);
+        vm.startPrank(alice);
         vm.expectRevert(EthPlays.AccountNotRegistered.selector);
         ethPlays.submitAlignmentVote(true);
     }
 
     function testSubmitAlignmentVote() public {
         registerAccounts();
-        startHoax(alice);
+        vm.startPrank(alice);
 
         // It updates the alignment value.
         ethPlays.submitAlignmentVote(true);
@@ -105,14 +109,14 @@ contract IntegrationTest is Test {
     }
 
     function testSubmitButtonInputNotRegistered() public {
-        hoax(alice);
+        vm.startPrank(alice);
         vm.expectRevert(EthPlays.AccountNotRegistered.selector);
         ethPlays.submitButtonInput(0);
     }
 
     function testSubmitButtonInputChaos() public {
         registerAccounts();
-        startHoax(alice);
+        vm.startPrank(alice);
 
         // It increments the inputIndex.
         assertEq(ethPlays.inputIndex(), 0);
@@ -137,17 +141,65 @@ contract IntegrationTest is Test {
         assertEq(poke.balanceOf(alice), chaosReward * 3);
     }
 
+    function testBannerAuction() public {
+        registerAccounts();
+        vm.startPrank(alice);
+        deal(address(poke), alice, 100e18);
+
+        // It transfers bid balance to the game contract.
+        ethPlays.submitBannerBid(1e18, "wagmi");
+        assertEq(poke.balanceOf(alice), 99e18);
+        assertEq(poke.balanceOf(address(ethPlays)), 1e18);
+
+        vm.stopPrank();
+        vm.startPrank(bob);
+        deal(address(poke), bob, 100e18);
+
+        // It transfers bid balance back to the previous bidder when a new best bid is submitted.
+        ethPlays.submitBannerBid(3e18, "ngmi");
+        assertEq(poke.balanceOf(alice), 100e18);
+        assertEq(poke.balanceOf(bob), 97e18);
+        assertEq(poke.balanceOf(address(ethPlays)), 3e18);
+
+        vm.stopPrank();
+        vm.startPrank(alice);
+
+        // It emits the BannerBid event.
+        vm.expectEmit(false, false, false, true, address(ethPlays));
+        emit NewBannerBid(alice, 10e18, "wagmi kek");
+        ethPlays.submitBannerBid(10e18, "wagmi kek");
+
+        // When submitting rolloverBannerAuction():
+
+        // It emits the Banner event.
+        vm.expectEmit(false, false, false, true, address(ethPlays));
+        emit Banner(alice, "wagmi kek");
+        ethPlays.rolloverBannerAuction();
+
+        // It reverts if the cooldown + duration time have not yet passed.
+        vm.expectRevert(EthPlays.AuctionInProgress.selector);
+        ethPlays.rolloverBannerAuction();
+
+        vm.warp(5000);
+
+        // It reverts if the no auction has no bids.
+        vm.expectRevert(EthPlays.AuctionHasNoBids.selector);
+        ethPlays.rolloverBannerAuction();
+
+        // It succeeds if the auction has a new bid.
+        ethPlays.submitBannerBid(1e18, "wagmi kek 2");
+        vm.expectEmit(false, false, false, true, address(ethPlays));
+        emit Banner(alice, "wagmi kek 2");
+        ethPlays.rolloverBannerAuction();
+    }
+
+    // TODO: testControlAuction()
+
     // TODO: testSubmitButtonInputOrder()
     // TODO: testSubmitButtonInputControl()
 
     // TODO: testSubmitChat()
     // TODO: testSubmitRareCandies()
-
-    // TODO: testSubmitBannerBid()
-    // TODO: testRolloverBannerAuction()
-
-    // TODO: testSubmitControlBid()
-    // TODO: testRolloverControlAuction()
 
     // TODO: testSetIsActive()
 }
