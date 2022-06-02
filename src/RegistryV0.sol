@@ -6,7 +6,7 @@ import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 /// @title Child registry for EthPlays
 /// @author olias.eth
 /// @notice This is experimental software, use at your own risk.
-contract EthPlaysChildRegistry is Ownable {
+contract RegistryV0 is Ownable {
     /* -------------------------------------------------------------------------- */
     /*                                   STORAGE                                  */
     /* -------------------------------------------------------------------------- */

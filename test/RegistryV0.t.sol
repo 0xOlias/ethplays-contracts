@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {EthPlaysChildRegistry} from "src/EthPlaysChildRegistry.sol";
+import {RegistryV0} from "src/RegistryV0.sol";
 
-contract EthPlaysChildRegistryTest is Test {
-    EthPlaysChildRegistry registry;
+contract RegistryV0Test is Test {
+    RegistryV0 registry;
 
     address deployer;
     address constant alice = address(1);
@@ -17,7 +17,7 @@ contract EthPlaysChildRegistryTest is Test {
 
     function setUp() public {
         deployer = address(this);
-        registry = new EthPlaysChildRegistry();
+        registry = new RegistryV0();
     }
 
     function testSubmitRegistration() public {

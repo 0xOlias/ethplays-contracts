@@ -5,14 +5,14 @@ import "forge-std/Test.sol";
 // import "forge-std/console.sol";
 
 import {Poke} from "src/Poke.sol";
-import {EthPlaysChildRegistry} from "src/EthPlaysChildRegistry.sol";
-import {EthPlays} from "src/EthPlays.sol";
+import {RegistryV0} from "src/RegistryV0.sol";
+import {EthPlaysV0} from "src/EthPlaysV0.sol";
 
 contract IntegrationTest is Test {
     // Test storage
     Poke poke;
-    EthPlaysChildRegistry registry;
-    EthPlays ethPlays;
+    RegistryV0 registry;
+    EthPlaysV0 ethPlays;
 
     address deployer;
     address constant alice = address(1);
@@ -37,8 +37,8 @@ contract IntegrationTest is Test {
     function setUp() public {
         deployer = address(this);
         poke = new Poke();
-        registry = new EthPlaysChildRegistry();
-        ethPlays = new EthPlays(address(poke), address(registry));
+        registry = new RegistryV0();
+        ethPlays = new EthPlaysV0(address(poke), address(registry));
         poke.updateGameAddress(address(ethPlays));
         vm.roll(1);
         vm.warp(1000);
@@ -84,7 +84,7 @@ contract IntegrationTest is Test {
 
     function testSubmitAlignmentVoteNotRegistered() public {
         vm.startPrank(alice);
-        vm.expectRevert(EthPlays.AccountNotRegistered.selector);
+        vm.expectRevert(EthPlaysV0.AccountNotRegistered.selector);
         ethPlays.submitAlignmentVote(true);
     }
 
@@ -97,7 +97,7 @@ contract IntegrationTest is Test {
         assertEq(ethPlays.alignment(), 1000);
 
         // It reverts if the alignment cooldown has not passed.
-        vm.expectRevert(EthPlays.AlignmentVoteCooldown.selector);
+        vm.expectRevert(EthPlaysV0.AlignmentVoteCooldown.selector);
         ethPlays.submitAlignmentVote(true);
 
         // It emits the AlignmentVote event and updates the alignment value with decay.
@@ -110,7 +110,7 @@ contract IntegrationTest is Test {
 
     function testSubmitButtonInputNotRegistered() public {
         vm.startPrank(alice);
-        vm.expectRevert(EthPlays.AccountNotRegistered.selector);
+        vm.expectRevert(EthPlaysV0.AccountNotRegistered.selector);
         ethPlays.submitButtonInput(0);
     }
 
@@ -177,13 +177,13 @@ contract IntegrationTest is Test {
         ethPlays.rolloverBannerAuction();
 
         // It reverts if the cooldown + duration time have not yet passed.
-        vm.expectRevert(EthPlays.AuctionInProgress.selector);
+        vm.expectRevert(EthPlaysV0.AuctionInProgress.selector);
         ethPlays.rolloverBannerAuction();
 
         vm.warp(5000);
 
         // It reverts if the no auction has no bids.
-        vm.expectRevert(EthPlays.AuctionHasNoBids.selector);
+        vm.expectRevert(EthPlaysV0.AuctionHasNoBids.selector);
         ethPlays.rolloverBannerAuction();
 
         // It succeeds if the auction has a new bid.

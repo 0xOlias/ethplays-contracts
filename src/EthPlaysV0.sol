@@ -4,12 +4,12 @@ pragma solidity >=0.8.0;
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 import {Poke} from "src/Poke.sol";
-import {EthPlaysChildRegistry} from "src/EthPlaysChildRegistry.sol";
+import {RegistryV0} from "src/RegistryV0.sol";
 
 /// @title An experiment in collaborative gaming
 /// @author olias.eth
 /// @notice This is experimental software, use at your own risk.
-contract EthPlays is Ownable {
+contract EthPlaysV0 is Ownable {
     /* -------------------------------------------------------------------------- */
     /*                                   TYPES                                    */
     /* -------------------------------------------------------------------------- */
@@ -32,7 +32,7 @@ contract EthPlays is Ownable {
     /// @notice [Contract] The POKE token contract
     Poke public poke;
     /// @notice [Contract] The EthPlays registry contract
-    EthPlaysChildRegistry public registry;
+    RegistryV0 public registry;
 
     /// @notice [Parameter] Indicates if the game is currently active
     bool public isActive;
@@ -173,7 +173,7 @@ contract EthPlays is Ownable {
 
     constructor(address pokeAddress, address registryAddress) {
         poke = Poke(pokeAddress);
-        registry = EthPlaysChildRegistry(registryAddress);
+        registry = RegistryV0(registryAddress);
 
         isActive = true;
 
