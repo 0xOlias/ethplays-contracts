@@ -3,7 +3,8 @@ pragma solidity >=0.8.0;
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
-import "./Poke.sol";
+import {Poke} from "src/Poke.sol";
+import {EthPlaysChildRegistry} from "src/EthPlaysChildRegistry.sol";
 
 /// @title An experiment in collaborative gaming
 /// @author olias.eth
@@ -28,8 +29,10 @@ contract EthPlays is Ownable {
     /*                                   STORAGE                                  */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice The address of the POKE token
+    /// @notice [Contract] The POKE token contract
     Poke public poke;
+    /// @notice [Contract] The EthPlays registry contract
+    EthPlaysChildRegistry public registry;
 
     /// @notice [Parameter] Indicates if the game is currently active
     bool public isActive;
@@ -39,20 +42,20 @@ contract EthPlays is Ownable {
     /// @notice [State] The block timestamp of the previous input
     uint256 private inputTimestamp;
 
-    /// @notice [Parameter] The rate (out of 1000) to remain upon decay
-    uint256 public alignmentDecayRate;
+    /// @notice [Parameter] Number of seconds between alignment votes for each account
+    uint256 public alignmentVoteCooldown;
+    /// @notice [State] Timestamp of latest alignment vote by account address
+    mapping(address => uint256) private alignmentVoteTimestamps;
     /// @notice [State] The current alignment value
-    int256 private alignment;
+    int256 public alignment;
+    /// @notice [Parameter] The fraction of alignment to persist upon decay, out of 1000
+    uint256 public alignmentDecayRate;
 
     /// @notice [Parameter] Number of seconds in the order vote period
     uint256 public orderDuration;
     /// @notice [State] Count of order votes for each button index, by input index
     uint256[8] private orderVotes;
 
-    /// @notice [State] Registered account addresses by burner account address
-    mapping(address => address) public accounts;
-    /// @notice [State] Burner account addresses by registered account address
-    mapping(address => address) public burnerAccounts;
     /// @notice [State] Total number of inputs an account has made
     mapping(address => uint256) private inputNonces;
     /// @notice [State] Most recent block in which an account submitted an input
@@ -104,9 +107,6 @@ contract EthPlays is Ownable {
     event Control(address from);
     event RareCandy(address from, uint256 count);
 
-    // Registration events
-    event UpdateBurnerAccount(address account, address burnerAccount);
-
     // Parameter updates
     event SetIsActive(bool isActive);
     event SetAlignmentDecayRate(uint256 alignmentDecayRate);
@@ -130,10 +130,11 @@ contract EthPlays is Ownable {
     error GameNotActive();
     error AccountNotRegistered();
     error InvalidButtonIndex();
-    error ControlActive();
+    error OtherPlayerHasControl();
+    error AlignmentVoteCooldown();
 
     // Redeem errors
-    error InsufficientBalance();
+    error InsufficientBalanceForRedeem();
 
     // Auction errors
     error InsufficientBalanceForBid();
@@ -148,13 +149,17 @@ contract EthPlays is Ownable {
 
     /// @notice Requires the game to be active.
     modifier onlyActive() {
-        if (!isActive) revert GameNotActive();
+        if (!isActive) {
+            revert GameNotActive();
+        }
         _;
     }
 
     /// @notice Requires the sender to be a registered account.
     modifier onlyRegistered() {
-        if (accounts[msg.sender] == address(0)) revert AccountNotRegistered();
+        if (registry.accounts(msg.sender) == address(0)) {
+            revert AccountNotRegistered();
+        }
         _;
     }
 
@@ -162,12 +167,14 @@ contract EthPlays is Ownable {
     /*                               INITIALIZATION                               */
     /* -------------------------------------------------------------------------- */
 
-    constructor(address pokeAddress) {
+    constructor(address pokeAddress, address registryAddress) {
         poke = Poke(pokeAddress);
+        registry = EthPlaysChildRegistry(registryAddress);
 
         isActive = true;
+
+        alignmentVoteCooldown = 30;
         alignmentDecayRate = 985;
-        orderDuration = 20;
 
         rewardTierSize = 100;
         orderReward = 10e18;
@@ -181,13 +188,40 @@ contract EthPlays is Ownable {
 
         controlAuctionCooldown = 300;
         controlAuctionDuration = 60;
-        controlDuration = 30;
         bestControlBid = ControlBid(address(0), 0);
+
+        orderDuration = 20;
+        controlDuration = 30;
     }
 
     /* -------------------------------------------------------------------------- */
     /*                                  GAMEPLAY                                  */
     /* -------------------------------------------------------------------------- */
+
+    /// @notice Submit an alignment vote.
+    /// @param _alignmentVote The alignment vote. True corresponds to order, false to chaos.
+    function submitAlignmentVote(bool _alignmentVote)
+        external
+        onlyActive
+        onlyRegistered
+    {
+        if (
+            block.timestamp <
+            alignmentVoteTimestamps[msg.sender] + alignmentVoteCooldown
+        ) {
+            revert AlignmentVoteCooldown();
+        }
+
+        // Apply alignment decay.
+        alignment *= int256(alignmentDecayRate);
+        alignment /= int256(1000);
+
+        // Apply sender alignment update.
+        alignment += _alignmentVote ? int256(1000) : -1000;
+
+        alignmentVoteTimestamps[msg.sender] = block.timestamp;
+        emit AlignmentVote(msg.sender, _alignmentVote, alignment);
+    }
 
     /// @notice Submit a button input.
     /// @param buttonIndex The index of the button input. Must be between 0 and 7.
@@ -202,9 +236,8 @@ contract EthPlays is Ownable {
 
         if (block.timestamp <= controlAuctionTimestamp + controlDuration) {
             // Individual control.
-
             if (msg.sender != controlAddress) {
-                revert ControlActive();
+                revert OtherPlayerHasControl();
             }
 
             inputTimestamp = block.timestamp;
@@ -212,10 +245,13 @@ contract EthPlays is Ownable {
             inputIndex++;
         } else if (alignment > 0) {
             // Order.
-
             orderVotes[buttonIndex]++;
 
-            poke.gameMint(msg.sender, calculateReward(orderReward));
+            uint256 reward = calculateReward(orderReward);
+            if (reward > 0) {
+                poke.gameMint(msg.sender, reward);
+            }
+
             emit InputVote(inputIndex, msg.sender, buttonIndex);
 
             if (block.timestamp >= inputTimestamp + orderDuration) {
@@ -237,8 +273,10 @@ contract EthPlays is Ownable {
             }
         } else {
             // Chaos.
-
-            poke.gameMint(msg.sender, calculateReward(chaosReward));
+            uint256 reward = calculateReward(chaosReward);
+            if (reward > 0) {
+                poke.gameMint(msg.sender, reward);
+            }
 
             inputTimestamp = block.timestamp;
             emit ButtonInput(inputIndex, msg.sender, buttonIndex);
@@ -247,23 +285,6 @@ contract EthPlays is Ownable {
 
         inputNonces[msg.sender]++;
         inputBlocks[msg.sender] = block.number;
-    }
-
-    /// @notice Submit an alignment vote.
-    /// @param _alignmentVote The alignment vote. True corresponds to order, false to chaos.
-    function submitAlignmentVote(bool _alignmentVote)
-        external
-        onlyActive
-        onlyRegistered
-    {
-        // Apply alignment decay.
-        alignment *= int256(alignmentDecayRate);
-        alignment /= int256(1000);
-
-        // Apply sender alignment update.
-        alignment += _alignmentVote ? int256(1000) : -1000;
-
-        emit AlignmentVote(msg.sender, _alignmentVote, alignment);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -278,7 +299,7 @@ contract EthPlays is Ownable {
         onlyRegistered
     {
         if (poke.balanceOf(msg.sender) < chatCost) {
-            revert InsufficientBalance();
+            revert InsufficientBalanceForRedeem();
         }
 
         poke.gameBurn(msg.sender, chatCost);
@@ -295,7 +316,7 @@ contract EthPlays is Ownable {
         uint256 totalCost = rareCandyCost * count;
 
         if (poke.balanceOf(msg.sender) < totalCost) {
-            revert InsufficientBalance();
+            revert InsufficientBalanceForRedeem();
         }
 
         poke.gameBurn(msg.sender, totalCost);
@@ -306,6 +327,9 @@ contract EthPlays is Ownable {
     /*                                  AUCTIONS                                  */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Submit a bid in the active banner auction.
+    /// @param amount The bid amount in POKE
+    /// @param message The requested banner message text
     function submitBannerBid(uint256 amount, string memory message)
         external
         onlyActive
@@ -332,6 +356,7 @@ contract EthPlays is Ownable {
         bestBannerBid = BannerBid(msg.sender, amount, message);
     }
 
+    /// @notice End the current banner auction and start the cooldown for the next one.
     function rolloverBannerAuction() external onlyActive {
         if (
             block.timestamp <
@@ -356,6 +381,8 @@ contract EthPlays is Ownable {
         emit Banner(bestBannerBid.from, bestBannerBid.message);
     }
 
+    /// @notice Submit a bid in the active control auction.
+    /// @param amount The bid amount in POKE
     function submitControlBid(uint256 amount)
         external
         onlyActive
@@ -384,6 +411,7 @@ contract EthPlays is Ownable {
         bestControlBid = ControlBid(msg.sender, amount);
     }
 
+    /// @notice End the current control auction and start the cooldown for the next one.
     function rolloverControlAuction() external onlyActive {
         if (
             block.timestamp < controlAuctionTimestamp + controlAuctionDuration
@@ -411,7 +439,7 @@ contract EthPlays is Ownable {
 
     /// @notice Calculates the reward modifier for this button input.
     /// @param baseReward The base reward to be adjusted
-    /// @return reward The reward, adjusted for playtime
+    /// @return reward The final reward, adjusted for playtime
     function calculateReward(uint256 baseReward)
         internal
         view
@@ -429,32 +457,11 @@ contract EthPlays is Ownable {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                             REGISTRATION ADMIN                             */
+    /*                                   ADMIN                                    */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Registers a new account to burner account mapping. Owner only.
-    /// @param account The address of the players main account
-    /// @param burnerAccount The address of the players burner account
-    function updateRegistration(address account, address burnerAccount)
-        external
-        onlyOwner
-    {
-        address previousBurnerAccount = burnerAccounts[account];
-        if (previousBurnerAccount != address(0)) {
-            // This is a re-registration. Must unregister the old burner account.
-            accounts[previousBurnerAccount] = address(0);
-        }
-
-        accounts[burnerAccount] = account;
-        burnerAccounts[account] = burnerAccount;
-
-        emit UpdateBurnerAccount(account, burnerAccount);
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                               PARAMETER ADMIN                              */
-    /* -------------------------------------------------------------------------- */
-
+    /// @notice Set the isActive parameter. Owner only.
+    /// @param _isActive New value for the isActive parameter
     function setIsActive(bool _isActive) external onlyOwner {
         isActive = _isActive;
         emit SetIsActive(_isActive);
