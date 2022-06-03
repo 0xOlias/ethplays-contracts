@@ -42,14 +42,14 @@ contract EthPlaysV0 is Ownable {
     /// @notice [State] The block timestamp of the previous input
     uint256 private inputTimestamp;
 
+    /// @notice [Parameter] The fraction of alignment to persist upon decay, out of 1000
+    uint256 public alignmentDecayRate;
     /// @notice [Parameter] Number of seconds between alignment votes for each account
     uint256 public alignmentVoteCooldown;
     /// @notice [State] Timestamp of latest alignment vote by account address
     mapping(address => uint256) private alignmentVoteTimestamps;
     /// @notice [State] The current alignment value
     int256 public alignment;
-    /// @notice [Parameter] The fraction of alignment to persist upon decay, out of 1000
-    uint256 public alignmentDecayRate;
 
     /// @notice [Parameter] Number of seconds in the order vote period
     uint256 public orderDuration;
