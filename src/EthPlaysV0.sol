@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity >=0.8.0;
+pragma solidity ^0.8.13;
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 import {Poke} from "src/Poke.sol";
-import {RegistryV0} from "src/RegistryV0.sol";
+import {RegistryReceiverV0} from "src/RegistryReceiverV0.sol";
 
 /// @title An experiment in collaborative gaming
 /// @author olias.eth
@@ -32,7 +32,7 @@ contract EthPlaysV0 is Ownable {
     /// @notice [Contract] The POKE token contract
     Poke public poke;
     /// @notice [Contract] The EthPlays registry contract
-    RegistryV0 public registry;
+    RegistryReceiverV0 public registry;
 
     /// @notice [Parameter] Indicates if the game is currently active
     bool public isActive;
@@ -173,7 +173,7 @@ contract EthPlaysV0 is Ownable {
 
     constructor(address pokeAddress, address registryAddress) {
         poke = Poke(pokeAddress);
-        registry = RegistryV0(registryAddress);
+        registry = RegistryReceiverV0(registryAddress);
 
         isActive = true;
 

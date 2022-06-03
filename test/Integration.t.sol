@@ -5,13 +5,13 @@ import "forge-std/Test.sol";
 // import "forge-std/console.sol";
 
 import {Poke} from "src/Poke.sol";
-import {RegistryV0} from "src/RegistryV0.sol";
+import {RegistryReceiverV0} from "src/RegistryReceiverV0.sol";
 import {EthPlaysV0} from "src/EthPlaysV0.sol";
 
 contract IntegrationTest is Test {
     // Test storage
     Poke poke;
-    RegistryV0 registry;
+    RegistryReceiverV0 registry;
     EthPlaysV0 ethPlays;
 
     address deployer;
@@ -37,7 +37,7 @@ contract IntegrationTest is Test {
     function setUp() public {
         deployer = address(this);
         poke = new Poke();
-        registry = new RegistryV0();
+        registry = new RegistryReceiverV0();
         ethPlays = new EthPlaysV0(address(poke), address(registry));
         poke.updateGameAddress(address(ethPlays));
         vm.roll(1);

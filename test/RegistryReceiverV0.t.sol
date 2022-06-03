@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {RegistryV0} from "src/RegistryV0.sol";
+import {RegistryReceiverV0} from "src/RegistryReceiverV0.sol";
 
-contract RegistryV0Test is Test {
-    RegistryV0 registry;
+contract RegistryReceiverV0Test is Test {
+    RegistryReceiverV0 registry;
 
     address deployer;
     address constant alice = address(1);
@@ -17,7 +17,7 @@ contract RegistryV0Test is Test {
 
     function setUp() public {
         deployer = address(this);
-        registry = new RegistryV0();
+        registry = new RegistryReceiverV0();
     }
 
     function testSubmitRegistration() public {
