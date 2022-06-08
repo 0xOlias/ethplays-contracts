@@ -13,7 +13,12 @@ contract RegistryReceiverV0Test is Test {
     address constant bob = address(2);
     address constant charlie = address(3);
 
-    event Registration(address account, address burnerAccount);
+    event NewRegistration(address account, address burnerAccount);
+    event UpdatedRegistration(
+        address account,
+        address burnerAccount,
+        address previousBurnerAccount
+    );
 
     function setUp() public {
         deployer = address(this);
@@ -28,8 +33,13 @@ contract RegistryReceiverV0Test is Test {
 
         hoax(deployer);
         vm.expectEmit(false, false, false, true, address(registry));
-        emit Registration(address(20), bob);
+        emit NewRegistration(address(20), bob);
         registry.submitRegistration(address(20), bob);
+
+        hoax(deployer);
+        vm.expectEmit(false, false, false, true, address(registry));
+        emit UpdatedRegistration(address(20), charlie, bob);
+        registry.submitRegistration(address(20), charlie);
     }
 
     function testSubmitRegistrationAsNotOwner() public {

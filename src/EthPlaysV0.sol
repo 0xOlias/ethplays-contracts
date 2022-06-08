@@ -161,7 +161,7 @@ contract EthPlaysV0 is Ownable {
 
     /// @notice Requires the sender to be a registered account.
     modifier onlyRegistered() {
-        if (registry.accounts(msg.sender) == address(0)) {
+        if (!registry.isRegistered(msg.sender)) {
             revert AccountNotRegistered();
         }
         _;
@@ -428,14 +428,9 @@ contract EthPlaysV0 is Ownable {
             revert AuctionHasNoBids();
         }
 
-        poke.gameTransfer(
-            address(this),
-            bestControlBid.from,
-            bestControlBid.amount
-        );
-        bestControlBid = ControlBid(address(0), 0);
-        bannerAuctionTimestamp = block.timestamp;
         emit Control(bestControlBid.from);
+        bannerAuctionTimestamp = block.timestamp;
+        bestControlBid = ControlBid(address(0), 0);
     }
 
     /* -------------------------------------------------------------------------- */

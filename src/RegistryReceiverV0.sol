@@ -20,13 +20,29 @@ contract RegistryReceiverV0 is Ownable {
     /*                                   EVENTS                                   */
     /* -------------------------------------------------------------------------- */
 
-    event Registration(address account, address burnerAccount);
+    event NewRegistration(address account, address burnerAccount);
+    event UpdatedRegistration(
+        address account,
+        address burnerAccount,
+        address previousBurnerAccount
+    );
 
     /* -------------------------------------------------------------------------- */
     /*                               INITIALIZATION                               */
     /* -------------------------------------------------------------------------- */
 
     constructor() {}
+
+    /* -------------------------------------------------------------------------- */
+    /*                                REGISTRATION                                */
+    /* -------------------------------------------------------------------------- */
+
+    /// @notice Returns true if the specified burner account is registered.
+    /// @param burnerAccount The address of the players burner account
+    /// @return isRegistered True if the burner account is registered
+    function isRegistered(address burnerAccount) public view returns (bool) {
+        return accounts[burnerAccount] != address(0);
+    }
 
     /* -------------------------------------------------------------------------- */
     /*                                REGISTRATION                                */
@@ -40,14 +56,18 @@ contract RegistryReceiverV0 is Ownable {
         onlyOwner
     {
         address previousBurnerAccount = burnerAccounts[account];
+
         if (previousBurnerAccount != address(0)) {
-            // This is a re-registration. Must unregister the old burner account.
-            accounts[previousBurnerAccount] = address(0);
+            emit UpdatedRegistration(
+                account,
+                burnerAccount,
+                previousBurnerAccount
+            );
+        } else {
+            emit NewRegistration(account, burnerAccount);
         }
 
         accounts[burnerAccount] = account;
         burnerAccounts[account] = burnerAccount;
-
-        emit Registration(account, burnerAccount);
     }
 }
