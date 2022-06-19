@@ -11,14 +11,8 @@ import {RegistryReceiverV0} from "src/RegistryReceiverV0.sol";
 /// @notice This is experimental software, use at your own risk.
 contract EthPlaysV0 is Ownable {
     /* -------------------------------------------------------------------------- */
-    /*                                   TYPES                                    */
+    /*                                   STRUCTS                                  */
     /* -------------------------------------------------------------------------- */
-
-    struct BannerBid {
-        address from;
-        uint256 amount;
-        string message;
-    }
 
     struct ControlBid {
         address from;
@@ -46,6 +40,8 @@ contract EthPlaysV0 is Ownable {
     uint256 public alignmentDecayRate;
     /// @notice [Parameter] Number of seconds between alignment votes for each account
     uint256 public alignmentVoteCooldown;
+    /// @notice [Parameter] The current reward (in POKE) for voting for chaos
+    uint256 public chaosVoteReward;
     /// @notice [State] Timestamp of latest alignment vote by account address
     mapping(address => uint256) private alignmentVoteTimestamps;
     /// @notice [State] The current alignment value
@@ -56,33 +52,22 @@ contract EthPlaysV0 is Ownable {
     /// @notice [State] Count of order votes for each button index, by input index
     uint256[8] private orderVotes;
 
-    /// @notice [State] Total number of inputs an account has made
-    mapping(address => uint256) private inputNonces;
+    /// @notice [State] Most recent inputIndex at which an account submitted an input
+    mapping(address => uint256) private inputIndices;
     /// @notice [State] Most recent block in which an account submitted an input
     mapping(address => uint256) private inputBlocks;
 
-    /// @notice [Parameter] The number of inputs in each reward tier
-    uint256 public rewardTierSize;
     /// @notice [Parameter] The current reward (in POKE) for chaos inputs
-    uint256 public chaosReward;
+    uint256 public chaosInputReward;
     /// @notice [Parameter] The current reward (in POKE) for order input votes
-    uint256 public orderReward;
+    uint256 public orderInputReward;
     /// @notice [Parameter] The current cost (in POKE) to submit a chat message
     uint256 public chatCost;
     /// @notice [Parameter] The current cost (in POKE) to buy a rare candy
     uint256 public rareCandyCost;
 
-    /// @notice [Parameter] The number of seconds between banner auctions
-    uint256 public bannerAuctionCooldown;
-    /// @notice [Parameter] The number of seconds that the banner auction lasts
-    uint256 public bannerAuctionDuration;
-    /// @notice [State] The best bid for the current banner auction
-    BannerBid private bestBannerBid;
-    /// @notice [State] The block timestamp of the start of the current banner auction
-    uint256 private bannerAuctionTimestamp;
-
     /// @notice [Parameter] The number of seconds between control auctions
-    uint256 public controlAuctionCooldown;
+    uint256 public controlCooldownDuration;
     /// @notice [Parameter] The number of seconds that the control auction lasts
     uint256 public controlAuctionDuration;
     /// @notice [Parameter] The number of seconds that control lasts
@@ -90,7 +75,9 @@ contract EthPlaysV0 is Ownable {
     /// @notice [State] The best bid for the current control auction
     ControlBid private bestControlBid;
     /// @notice [State] The block timestamp of the start of the current control auction
-    uint256 private controlAuctionTimestamp;
+    uint256 private controlAuctionStartTimestamp;
+    /// @notice [State] The block timestamp of the start of the current control auction
+    uint256 private controlAuctionEndTimestamp;
     /// @notice [State] The account that has (or most recently had) control
     address private controlAddress;
 
@@ -106,23 +93,19 @@ contract EthPlaysV0 is Ownable {
     event RareCandy(address from, uint256 count);
 
     // Auction events
-    event NewBannerBid(address from, uint256 amount, string message);
-    event Banner(address from, string message);
     event NewControlBid(address from, uint256 amount);
     event Control(address from);
 
     // Parameter update events
     event SetIsActive(bool isActive);
     event SetAlignmentDecayRate(uint256 alignmentDecayRate);
+    event SetChaosVoteReward(uint256 chaosVoteReward);
     event SetOrderDuration(uint256 orderDuration);
-    event SetRewardTierSize(uint256 rewardTierSize);
-    event SetChaosReward(uint256 chaosReward);
-    event SetOrderReward(uint256 orderReward);
+    event SetChaosInputReward(uint256 chaosInputReward);
+    event SetOrderInputReward(uint256 orderInputReward);
     event SetChatCost(uint256 chatCost);
     event SetRareCandyCost(uint256 rareCandyCost);
-    event SetBannerAuctionCooldown(uint256 bannerAuctionCooldown);
-    event SetBannerAuctionDuration(uint256 bannerAuctionDuration);
-    event SetControlAuctionCooldown(uint256 controlAuctionCooldown);
+    event SetControlCooldownDuration(uint256 controlCooldownDuration);
     event SetControlAuctionDuration(uint256 controlAuctionDuration);
     event SetControlDuration(uint256 controlDuration);
 
@@ -135,6 +118,7 @@ contract EthPlaysV0 is Ownable {
     error AccountNotRegistered();
     error InvalidButtonIndex();
     error OtherPlayerHasControl();
+    error AlreadyVotedForThisInput();
     error AlignmentVoteCooldown();
 
     // Redeem errors
@@ -143,8 +127,9 @@ contract EthPlaysV0 is Ownable {
     // Auction errors
     error InsufficientBalanceForBid();
     error InsufficientBidAmount();
+    error AuctionInCooldown();
     error AuctionInProgress();
-    error AuctionNotActive();
+    error AuctionIsOver();
     error AuctionHasNoBids();
 
     /* -------------------------------------------------------------------------- */
@@ -179,23 +164,19 @@ contract EthPlaysV0 is Ownable {
 
         alignmentVoteCooldown = 30;
         alignmentDecayRate = 985;
-
-        rewardTierSize = 100;
-        orderReward = 10e18;
-        chaosReward = 20e18;
-        chatCost = 10e18;
-        rareCandyCost = 200e18;
-
-        bannerAuctionCooldown = 120;
-        bannerAuctionDuration = 60;
-        bestBannerBid = BannerBid(address(0), 0, "");
-
-        controlAuctionCooldown = 300;
-        controlAuctionDuration = 60;
-        bestControlBid = ControlBid(address(0), 0);
+        chaosVoteReward = 50e18;
 
         orderDuration = 20;
+
+        chaosInputReward = 10e18;
+        orderInputReward = 10e18;
+        chatCost = 20e18;
+        rareCandyCost = 200e18;
+
+        controlCooldownDuration = 300;
+        controlAuctionDuration = 60;
         controlDuration = 30;
+        bestControlBid = ControlBid(address(0), 0);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -214,6 +195,11 @@ contract EthPlaysV0 is Ownable {
             alignmentVoteTimestamps[msg.sender] + alignmentVoteCooldown
         ) {
             revert AlignmentVoteCooldown();
+        }
+
+        // Mint tokens to the sender if the vote is for Chaos.
+        if (!_alignmentVote) {
+            poke.gameMint(msg.sender, chaosVoteReward);
         }
 
         // Apply alignment decay.
@@ -238,8 +224,8 @@ contract EthPlaysV0 is Ownable {
             revert InvalidButtonIndex();
         }
 
-        if (block.timestamp <= controlAuctionTimestamp + controlDuration) {
-            // Individual control.
+        if (block.timestamp <= controlAuctionEndTimestamp + controlDuration) {
+            // Control
             if (msg.sender != controlAddress) {
                 revert OtherPlayerHasControl();
             }
@@ -248,18 +234,12 @@ contract EthPlaysV0 is Ownable {
             emit ButtonInput(inputIndex, msg.sender, buttonIndex);
             inputIndex++;
         } else if (alignment > 0) {
-            // Order.
+            // Order
+
             orderVotes[buttonIndex]++;
 
-            uint256 reward = calculateReward(orderReward);
-            if (reward > 0) {
-                poke.gameMint(msg.sender, reward);
-            }
-
-            emit InputVote(inputIndex, msg.sender, buttonIndex);
-
+            // If orderDuration seconds have passed since the previous input, execute.
             if (block.timestamp >= inputTimestamp + orderDuration) {
-                // If orderDuration seconds have passed since the previous input, execute.
                 uint256 bestButtonIndex = 0;
                 uint256 bestButtonIndexVoteCount = 0;
 
@@ -274,21 +254,26 @@ contract EthPlaysV0 is Ownable {
                 inputTimestamp = block.timestamp;
                 emit ButtonInput(inputIndex, msg.sender, bestButtonIndex);
                 inputIndex++;
+            } else {
+                if (inputIndex == inputIndices[msg.sender]) {
+                    revert AlreadyVotedForThisInput();
+                }
+                inputIndices[msg.sender] = inputIndex;
+
+                poke.gameMint(msg.sender, orderInputReward);
+                emit InputVote(inputIndex, msg.sender, buttonIndex);
             }
         } else {
-            // Chaos.
-            uint256 reward = calculateReward(chaosReward);
-            if (reward > 0) {
-                poke.gameMint(msg.sender, reward);
+            // Chaos
+            if (block.number > inputBlocks[msg.sender]) {
+                poke.gameMint(msg.sender, chaosInputReward);
             }
+            inputBlocks[msg.sender] = block.number;
 
             inputTimestamp = block.timestamp;
             emit ButtonInput(inputIndex, msg.sender, buttonIndex);
             inputIndex++;
         }
-
-        inputNonces[msg.sender]++;
-        inputBlocks[msg.sender] = block.number;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -331,58 +316,6 @@ contract EthPlaysV0 is Ownable {
     /*                                  AUCTIONS                                  */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Submit a bid in the active banner auction.
-    /// @param amount The bid amount in POKE
-    /// @param message The requested banner message text
-    function submitBannerBid(uint256 amount, string memory message)
-        external
-        onlyActive
-        onlyRegistered
-    {
-        if (block.timestamp < bannerAuctionTimestamp + bannerAuctionCooldown) {
-            revert AuctionNotActive();
-        }
-
-        if (poke.balanceOf(msg.sender) < amount) {
-            revert InsufficientBalanceForBid();
-        }
-
-        if (amount <= bestBannerBid.amount) {
-            revert InsufficientBidAmount();
-        }
-
-        if (bestBannerBid.from != address(0)) {
-            poke.gameTransfer(
-                address(this),
-                bestBannerBid.from,
-                bestBannerBid.amount
-            );
-        }
-        poke.gameTransfer(msg.sender, address(this), amount);
-        bestBannerBid = BannerBid(msg.sender, amount, message);
-        emit NewBannerBid(msg.sender, amount, message);
-    }
-
-    /// @notice End the current banner auction and start the cooldown for the next one.
-    function rolloverBannerAuction() external onlyActive {
-        if (
-            block.timestamp <
-            bannerAuctionTimestamp +
-                bannerAuctionCooldown +
-                bannerAuctionDuration
-        ) {
-            revert AuctionInProgress();
-        }
-
-        if (bestBannerBid.from == address(0)) {
-            revert AuctionHasNoBids();
-        }
-
-        emit Banner(bestBannerBid.from, bestBannerBid.message);
-        bannerAuctionTimestamp = block.timestamp;
-        bestBannerBid = BannerBid(address(0), 0, "");
-    }
-
     /// @notice Submit a bid in the active control auction.
     /// @param amount The bid amount in POKE
     function submitControlBid(uint256 amount)
@@ -390,10 +323,25 @@ contract EthPlaysV0 is Ownable {
         onlyActive
         onlyRegistered
     {
+        // The auction is in cooldown.
         if (
-            block.timestamp < controlAuctionTimestamp + controlAuctionCooldown
+            block.timestamp <
+            controlAuctionEndTimestamp + controlCooldownDuration
         ) {
-            revert AuctionNotActive();
+            revert AuctionInCooldown();
+        }
+
+        // This is the first bid in the auction, so set controlAuctionStartTimestamp.
+        if (bestControlBid.from == address(0)) {
+            controlAuctionStartTimestamp = block.timestamp;
+        }
+
+        // The auction is over (it must be ended).
+        if (
+            block.timestamp >
+            controlAuctionStartTimestamp + controlAuctionDuration
+        ) {
+            revert AuctionIsOver();
         }
 
         if (poke.balanceOf(msg.sender) < amount) {
@@ -405,21 +353,18 @@ contract EthPlaysV0 is Ownable {
         }
 
         if (bestControlBid.from != address(0)) {
-            poke.gameTransfer(
-                address(this),
-                bestControlBid.from,
-                bestControlBid.amount
-            );
+            poke.gameMint(bestControlBid.from, bestControlBid.amount);
         }
-        poke.gameTransfer(msg.sender, address(this), amount);
+        poke.gameBurn(msg.sender, amount);
         bestControlBid = ControlBid(msg.sender, amount);
         emit NewControlBid(msg.sender, amount);
     }
 
     /// @notice End the current control auction and start the cooldown for the next one.
-    function rolloverControlAuction() external onlyActive {
+    function endControlAuction() external onlyActive {
         if (
-            block.timestamp < controlAuctionTimestamp + controlAuctionDuration
+            block.timestamp <
+            controlAuctionStartTimestamp + controlAuctionDuration
         ) {
             revert AuctionInProgress();
         }
@@ -429,31 +374,8 @@ contract EthPlaysV0 is Ownable {
         }
 
         emit Control(bestControlBid.from);
-        bannerAuctionTimestamp = block.timestamp;
+        controlAuctionEndTimestamp = block.timestamp;
         bestControlBid = ControlBid(address(0), 0);
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                                  HELPERS                                   */
-    /* -------------------------------------------------------------------------- */
-
-    /// @notice Calculates the reward modifier for this button input.
-    /// @param baseReward The base reward to be adjusted
-    /// @return reward The final reward, adjusted for playtime
-    function calculateReward(uint256 baseReward)
-        internal
-        view
-        returns (uint256)
-    {
-        // If this is not the first reward for this player in this block, return zero.
-        if (inputBlocks[msg.sender] >= block.number) {
-            return 0;
-        }
-
-        uint256 rewardTier = inputNonces[msg.sender] / rewardTierSize;
-        // If the player is beyond rewardTier 9, set to rewardTier 9.
-        rewardTier = rewardTier > 9 ? 9 : rewardTier;
-        return (baseReward * (10 - rewardTier)) / 10;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -480,19 +402,19 @@ contract EthPlaysV0 is Ownable {
         emit SetOrderDuration(_orderDuration);
     }
 
-    function setRewardTierSize(uint256 _rewardTierSize) external onlyOwner {
-        rewardTierSize = _rewardTierSize;
-        emit SetRewardTierSize(_rewardTierSize);
+    function setChaosVoteReward(uint256 _chaosVoteReward) external onlyOwner {
+        chaosVoteReward = _chaosVoteReward;
+        emit SetChaosVoteReward(_chaosVoteReward);
     }
 
-    function setChaosReward(uint256 _chaosReward) external onlyOwner {
-        chaosReward = _chaosReward;
-        emit SetChaosReward(_chaosReward);
+    function setChaosInputReward(uint256 _chaosInputReward) external onlyOwner {
+        chaosInputReward = _chaosInputReward;
+        emit SetChaosInputReward(_chaosInputReward);
     }
 
-    function setOrderReward(uint256 _orderReward) external onlyOwner {
-        orderReward = _orderReward;
-        emit SetOrderReward(_orderReward);
+    function setOrderInputReward(uint256 _orderInputReward) external onlyOwner {
+        orderInputReward = _orderInputReward;
+        emit SetOrderInputReward(_orderInputReward);
     }
 
     function setChatCost(uint256 _chatCost) external onlyOwner {
@@ -505,28 +427,12 @@ contract EthPlaysV0 is Ownable {
         emit SetRareCandyCost(_rareCandyCost);
     }
 
-    function setBannerAuctionCooldown(uint256 _bannerAuctionCooldown)
+    function setControlCooldownDuration(uint256 _controlCooldownDuration)
         external
         onlyOwner
     {
-        bannerAuctionCooldown = _bannerAuctionCooldown;
-        emit SetBannerAuctionCooldown(_bannerAuctionCooldown);
-    }
-
-    function setBannerAuctionDuration(uint256 _bannerAuctionDuration)
-        external
-        onlyOwner
-    {
-        bannerAuctionDuration = _bannerAuctionDuration;
-        emit SetBannerAuctionDuration(_bannerAuctionDuration);
-    }
-
-    function setControlAuctionCooldown(uint256 _controlAuctionCooldown)
-        external
-        onlyOwner
-    {
-        controlAuctionCooldown = _controlAuctionCooldown;
-        emit SetControlAuctionCooldown(_controlAuctionCooldown);
+        controlCooldownDuration = _controlCooldownDuration;
+        emit SetControlCooldownDuration(_controlCooldownDuration);
     }
 
     function setControlAuctionDuration(uint256 _controlAuctionDuration)
