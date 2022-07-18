@@ -22,9 +22,9 @@ contract IntegrationTest is Test {
     uint256 alignmentVoteCooldown;
     uint256 chaosVoteReward;
     uint256 orderDuration;
+    uint256 chaosInputRewardCooldown;
     uint256 orderInputReward;
     uint256 chaosInputReward;
-    uint256 controlCooldownDuration;
     uint256 controlAuctionDuration;
 
     // Poke events
@@ -50,6 +50,7 @@ contract IntegrationTest is Test {
         alignmentVoteCooldown = ethPlays.alignmentVoteCooldown();
         chaosVoteReward = ethPlays.chaosVoteReward();
         orderDuration = ethPlays.orderDuration();
+        chaosInputRewardCooldown = ethPlays.chaosInputRewardCooldown();
         orderInputReward = ethPlays.orderInputReward();
         chaosInputReward = ethPlays.chaosInputReward();
         controlAuctionDuration = ethPlays.controlAuctionDuration();
@@ -134,27 +135,29 @@ contract IntegrationTest is Test {
         registerAccounts();
         vm.startPrank(alice);
 
+        // It mints reward tokens (if cooldown has passed).
+        vm.expectEmit(false, false, false, true, address(poke));
+        emit Transfer(address(0), alice, chaosInputReward);
+        ethPlays.submitButtonInput(6);
+        assertEq(poke.balanceOf(alice), chaosInputReward * 1);
+
         // It increments the inputIndex.
-        assertEq(ethPlays.inputIndex(), 0);
-        ethPlays.submitButtonInput(2);
         assertEq(ethPlays.inputIndex(), 1);
+        ethPlays.submitButtonInput(2);
+        assertEq(ethPlays.inputIndex(), 2);
+        // It doesn't mint reward tokens (if cooldown has not passed).
+        assertEq(poke.balanceOf(alice), chaosInputReward * 1);
 
         // It emits the ButtonInput event.
         mine();
         vm.expectEmit(false, false, false, true, address(ethPlays));
-        emit ButtonInput(1, alice, 5);
+        emit ButtonInput(3, alice, 5);
         ethPlays.submitButtonInput(5);
 
-        // It mints reward tokens if first input from this account in this block.
-        mine();
-        vm.expectEmit(false, false, false, true, address(poke));
-        emit Transfer(address(0), alice, chaosInputReward);
-        ethPlays.submitButtonInput(6);
-        assertEq(poke.balanceOf(alice), chaosInputReward * 3);
-
-        // It doesn't mint reward tokens if second input from this account in this block.
-        ethPlays.submitButtonInput(6);
-        assertEq(poke.balanceOf(alice), chaosInputReward * 3);
+        // It mints reward tokens (if cooldown has passed).
+        skip(chaosInputRewardCooldown + 1);
+        ethPlays.submitButtonInput(5);
+        assertEq(poke.balanceOf(alice), chaosInputReward * 2);
     }
 
     function testSubmitButtonInputOrder() public {
@@ -232,7 +235,6 @@ contract IntegrationTest is Test {
         ethPlays.endControlAuction();
 
         // It reverts if the auction has a bid but is still in progress.
-        skip(controlCooldownDuration + 1);
         ethPlays.submitControlBid(1e18);
         vm.expectRevert(EthPlaysV0.AuctionInProgress.selector);
         ethPlays.endControlAuction();

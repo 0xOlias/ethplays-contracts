@@ -51,13 +51,15 @@ contract EthPlaysV0 is Ownable {
     uint256 public orderDuration;
     /// @notice [State] Count of order votes for each button index, by input index
     uint256[8] private orderVotes;
-
-    /// @notice [State] Most recent inputIndex at which an account submitted an input
+    /// @notice [State] Most recent inputIndex an account submitted an order vote
     mapping(address => uint256) private inputIndices;
-    /// @notice [State] Most recent block in which an account submitted an input
-    mapping(address => uint256) private inputBlocks;
 
-    /// @notice [Parameter] The current reward (in POKE) for chaos inputs
+    /// @notice [State] Timestamp of the most recent chaos input for each account
+    mapping(address => uint256) private accountInputTimestamps;
+    /// @notice [Parameter] Number of seconds of cooldown between chaos rewards
+    uint256 public chaosInputRewardCooldown;
+
+    /// @notice [Parameter] The current reward (in POKE) for chaos inputs, subject to cooldown
     uint256 public chaosInputReward;
     /// @notice [Parameter] The current reward (in POKE) for order input votes
     uint256 public orderInputReward;
@@ -97,11 +99,11 @@ contract EthPlaysV0 is Ownable {
     event SetAlignmentDecayRate(uint256 alignmentDecayRate);
     event SetChaosVoteReward(uint256 chaosVoteReward);
     event SetOrderDuration(uint256 orderDuration);
+    event SetChaosInputRewardCooldown(uint256 chaosInputRewardCooldown);
     event SetChaosInputReward(uint256 chaosInputReward);
     event SetOrderInputReward(uint256 orderInputReward);
     event SetChatCost(uint256 chatCost);
     event SetRareCandyCost(uint256 rareCandyCost);
-    event SetControlCooldownDuration(uint256 controlCooldownDuration);
     event SetControlAuctionDuration(uint256 controlAuctionDuration);
     event SetControlDuration(uint256 controlDuration);
 
@@ -162,6 +164,7 @@ contract EthPlaysV0 is Ownable {
         chaosVoteReward = 50e18;
 
         orderDuration = 20;
+        chaosInputRewardCooldown = 30;
 
         chaosInputReward = 10e18;
         orderInputReward = 10e18;
@@ -233,6 +236,8 @@ contract EthPlaysV0 is Ownable {
             orderVotes[buttonIndex]++;
 
             // If orderDuration seconds have passed since the previous input, execute.
+            // This path could/should be broken out into an external "executeOrderVote"
+            // function that rewards the sender in POKE.
             if (block.timestamp >= inputTimestamp + orderDuration) {
                 uint256 bestButtonIndex = 0;
                 uint256 bestButtonIndexVoteCount = 0;
@@ -259,10 +264,13 @@ contract EthPlaysV0 is Ownable {
             }
         } else {
             // Chaos
-            if (block.number > inputBlocks[msg.sender]) {
+            if (
+                block.timestamp >
+                accountInputTimestamps[msg.sender] + chaosInputRewardCooldown
+            ) {
                 poke.gameMint(msg.sender, chaosInputReward);
             }
-            inputBlocks[msg.sender] = block.number;
+            accountInputTimestamps[msg.sender] = block.timestamp;
 
             inputTimestamp = block.timestamp;
             emit ButtonInput(inputIndex, msg.sender, buttonIndex);
@@ -382,14 +390,22 @@ contract EthPlaysV0 is Ownable {
         emit SetAlignmentDecayRate(_alignmentDecayRate);
     }
 
+    function setChaosVoteReward(uint256 _chaosVoteReward) external onlyOwner {
+        chaosVoteReward = _chaosVoteReward;
+        emit SetChaosVoteReward(_chaosVoteReward);
+    }
+
     function setOrderDuration(uint256 _orderDuration) external onlyOwner {
         orderDuration = _orderDuration;
         emit SetOrderDuration(_orderDuration);
     }
 
-    function setChaosVoteReward(uint256 _chaosVoteReward) external onlyOwner {
-        chaosVoteReward = _chaosVoteReward;
-        emit SetChaosVoteReward(_chaosVoteReward);
+    function setChaosInputRewardCooldown(uint256 _chaosInputRewardCooldown)
+        external
+        onlyOwner
+    {
+        chaosInputRewardCooldown = _chaosInputRewardCooldown;
+        emit SetChaosInputRewardCooldown(_chaosInputRewardCooldown);
     }
 
     function setChaosInputReward(uint256 _chaosInputReward) external onlyOwner {
