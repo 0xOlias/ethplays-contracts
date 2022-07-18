@@ -66,8 +66,6 @@ contract EthPlaysV0 is Ownable {
     /// @notice [Parameter] The current cost (in POKE) to buy a rare candy
     uint256 public rareCandyCost;
 
-    /// @notice [Parameter] The number of seconds between control auctions
-    uint256 public controlCooldownDuration;
     /// @notice [Parameter] The number of seconds that the control auction lasts
     uint256 public controlAuctionDuration;
     /// @notice [Parameter] The number of seconds that control lasts
@@ -75,11 +73,9 @@ contract EthPlaysV0 is Ownable {
     /// @notice [State] The best bid for the current control auction
     ControlBid private bestControlBid;
     /// @notice [State] The block timestamp of the start of the current control auction
-    uint256 private controlAuctionStartTimestamp;
-    /// @notice [State] The block timestamp of the start of the current control auction
-    uint256 private controlAuctionEndTimestamp;
+    uint256 public controlAuctionTimestamp;
     /// @notice [State] The account that has (or most recently had) control
-    address private controlAddress;
+    address public controlAddress;
 
     /* -------------------------------------------------------------------------- */
     /*                                   EVENTS                                   */
@@ -127,7 +123,6 @@ contract EthPlaysV0 is Ownable {
     // Auction errors
     error InsufficientBalanceForBid();
     error InsufficientBidAmount();
-    error AuctionInCooldown();
     error AuctionInProgress();
     error AuctionIsOver();
     error AuctionHasNoBids();
@@ -173,8 +168,7 @@ contract EthPlaysV0 is Ownable {
         chatCost = 20e18;
         rareCandyCost = 200e18;
 
-        controlCooldownDuration = 300;
-        controlAuctionDuration = 60;
+        controlAuctionDuration = 300;
         controlDuration = 30;
         bestControlBid = ControlBid(address(0), 0);
     }
@@ -224,7 +218,7 @@ contract EthPlaysV0 is Ownable {
             revert InvalidButtonIndex();
         }
 
-        if (block.timestamp <= controlAuctionEndTimestamp + controlDuration) {
+        if (block.timestamp <= controlAuctionTimestamp + controlDuration) {
             // Control
             if (msg.sender != controlAddress) {
                 revert OtherPlayerHasControl();
@@ -323,23 +317,14 @@ contract EthPlaysV0 is Ownable {
         onlyActive
         onlyRegistered
     {
-        // The auction is in cooldown.
-        if (
-            block.timestamp <
-            controlAuctionEndTimestamp + controlCooldownDuration
-        ) {
-            revert AuctionInCooldown();
-        }
-
         // This is the first bid in the auction, so set controlAuctionStartTimestamp.
         if (bestControlBid.from == address(0)) {
-            controlAuctionStartTimestamp = block.timestamp;
+            controlAuctionTimestamp = block.timestamp;
         }
 
         // The auction is over (it must be ended).
         if (
-            block.timestamp >
-            controlAuctionStartTimestamp + controlAuctionDuration
+            block.timestamp > controlAuctionTimestamp + controlAuctionDuration
         ) {
             revert AuctionIsOver();
         }
@@ -352,6 +337,7 @@ contract EthPlaysV0 is Ownable {
             revert InsufficientBidAmount();
         }
 
+        // If there was a previous best bid, return the bid amount to the account that submitted it.
         if (bestControlBid.from != address(0)) {
             poke.gameMint(bestControlBid.from, bestControlBid.amount);
         }
@@ -363,8 +349,7 @@ contract EthPlaysV0 is Ownable {
     /// @notice End the current control auction and start the cooldown for the next one.
     function endControlAuction() external onlyActive {
         if (
-            block.timestamp <
-            controlAuctionStartTimestamp + controlAuctionDuration
+            block.timestamp < controlAuctionTimestamp + controlAuctionDuration
         ) {
             revert AuctionInProgress();
         }
@@ -374,7 +359,7 @@ contract EthPlaysV0 is Ownable {
         }
 
         emit Control(bestControlBid.from);
-        controlAuctionEndTimestamp = block.timestamp;
+        controlAddress = bestControlBid.from;
         bestControlBid = ControlBid(address(0), 0);
     }
 
@@ -425,14 +410,6 @@ contract EthPlaysV0 is Ownable {
     function setRareCandyCost(uint256 _rareCandyCost) external onlyOwner {
         rareCandyCost = _rareCandyCost;
         emit SetRareCandyCost(_rareCandyCost);
-    }
-
-    function setControlCooldownDuration(uint256 _controlCooldownDuration)
-        external
-        onlyOwner
-    {
-        controlCooldownDuration = _controlCooldownDuration;
-        emit SetControlCooldownDuration(_controlCooldownDuration);
     }
 
     function setControlAuctionDuration(uint256 _controlAuctionDuration)

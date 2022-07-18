@@ -52,7 +52,6 @@ contract IntegrationTest is Test {
         orderDuration = ethPlays.orderDuration();
         orderInputReward = ethPlays.orderInputReward();
         chaosInputReward = ethPlays.chaosInputReward();
-        controlCooldownDuration = ethPlays.controlCooldownDuration();
         controlAuctionDuration = ethPlays.controlAuctionDuration();
     }
 
@@ -90,8 +89,7 @@ contract IntegrationTest is Test {
         assertEq(ethPlays.chatCost(), 20e18);
         assertEq(ethPlays.rareCandyCost(), 200e18);
 
-        assertEq(ethPlays.controlCooldownDuration(), 300);
-        assertEq(ethPlays.controlAuctionDuration(), 60);
+        assertEq(ethPlays.controlAuctionDuration(), 300);
         assertEq(ethPlays.controlDuration(), 30);
     }
 
@@ -223,10 +221,11 @@ contract IntegrationTest is Test {
         ethPlays.submitControlBid(12e18);
 
         // When submitting endControlAuction...
-        // It succeeds and emits the event.
+        // It succeeds, emits the event, and sets the control address.
         vm.expectEmit(false, false, false, true, address(ethPlays));
         emit Control(alice);
         ethPlays.endControlAuction();
+        assertEq(ethPlays.controlAddress(), alice);
 
         // It reverts if the auction has no bids.
         vm.expectRevert(EthPlaysV0.AuctionHasNoBids.selector);
