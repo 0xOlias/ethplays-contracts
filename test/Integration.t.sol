@@ -158,6 +158,14 @@ contract IntegrationTest is Test {
         skip(chaosInputRewardCooldown + 1);
         ethPlays.submitButtonInput(5);
         assertEq(poke.balanceOf(alice), chaosInputReward * 2);
+
+        // It mints reward tokens (if cooldown has passed, even if the user submitted during cooldown).
+        skip(chaosInputRewardCooldown / 2 + 1);
+        ethPlays.submitButtonInput(5);
+        assertEq(poke.balanceOf(alice), chaosInputReward * 2);
+        skip(chaosInputRewardCooldown / 2 + 1);
+        ethPlays.submitButtonInput(5);
+        assertEq(poke.balanceOf(alice), chaosInputReward * 3);
     }
 
     function testSubmitButtonInputOrder() public {

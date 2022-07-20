@@ -55,7 +55,7 @@ contract EthPlaysV0 is Ownable {
     mapping(address => uint256) private inputIndices;
 
     /// @notice [State] Timestamp of the most recent chaos input for each account
-    mapping(address => uint256) private accountInputTimestamps;
+    mapping(address => uint256) private chaosInputTimestamps;
     /// @notice [Parameter] Number of seconds of cooldown between chaos rewards
     uint256 public chaosInputRewardCooldown;
 
@@ -266,11 +266,11 @@ contract EthPlaysV0 is Ownable {
             // Chaos
             if (
                 block.timestamp >
-                accountInputTimestamps[msg.sender] + chaosInputRewardCooldown
+                chaosInputTimestamps[msg.sender] + chaosInputRewardCooldown
             ) {
+                chaosInputTimestamps[msg.sender] = block.timestamp;
                 poke.gameMint(msg.sender, chaosInputReward);
             }
-            accountInputTimestamps[msg.sender] = block.timestamp;
 
             inputTimestamp = block.timestamp;
             emit ButtonInput(inputIndex, msg.sender, buttonIndex);
