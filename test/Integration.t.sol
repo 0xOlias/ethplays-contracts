@@ -26,6 +26,7 @@ contract IntegrationTest is Test {
     uint256 orderInputReward;
     uint256 chaosInputReward;
     uint256 controlAuctionDuration;
+    uint256 controlDuration;
 
     // Poke events
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -54,6 +55,7 @@ contract IntegrationTest is Test {
         orderInputReward = ethPlays.orderInputReward();
         chaosInputReward = ethPlays.chaosInputReward();
         controlAuctionDuration = ethPlays.controlAuctionDuration();
+        controlDuration = ethPlays.controlDuration();
     }
 
     function registerAccounts() public {
@@ -81,16 +83,16 @@ contract IntegrationTest is Test {
         assertEq(ethPlays.isActive(), true);
         assertEq(ethPlays.alignmentVoteCooldown(), 30);
         assertEq(ethPlays.alignmentDecayRate(), 985);
-        assertEq(ethPlays.chaosVoteReward(), 50e18);
+        assertEq(ethPlays.chaosVoteReward(), 40e18);
 
         assertEq(ethPlays.orderDuration(), 20);
 
-        assertEq(ethPlays.orderInputReward(), 10e18);
-        assertEq(ethPlays.chaosInputReward(), 10e18);
+        assertEq(ethPlays.orderInputReward(), 20e18);
+        assertEq(ethPlays.chaosInputReward(), 20e18);
         assertEq(ethPlays.chatCost(), 20e18);
         assertEq(ethPlays.rareCandyCost(), 200e18);
 
-        assertEq(ethPlays.controlAuctionDuration(), 300);
+        assertEq(ethPlays.controlAuctionDuration(), 90);
         assertEq(ethPlays.controlDuration(), 30);
     }
 
@@ -190,6 +192,34 @@ contract IntegrationTest is Test {
 
         // It reverts if submitting for the 2nd time for the same inputIndex
         vm.expectRevert(EthPlaysV0.AlreadyVotedForThisInput.selector);
+        ethPlays.submitButtonInput(4);
+    }
+
+    function testSubmitButtonInputControl() public {
+        registerAccounts();
+        dealPoke(alice, 100e18);
+        vm.startPrank(alice);
+
+        ethPlays.submitControlBid(1e18);
+        skip(controlAuctionDuration + 1);
+        ethPlays.endControlAuction();
+
+        // It succeeds if the auction winner submits an input
+        vm.expectEmit(false, false, false, true, address(ethPlays));
+        emit ButtonInput(0, alice, 2);
+        ethPlays.submitButtonInput(2);
+
+        vm.stopPrank();
+        vm.startPrank(bob);
+
+        // It reverts if another player submits an input
+        vm.expectRevert(EthPlaysV0.AnotherPlayerHasControl.selector);
+        ethPlays.submitButtonInput(5);
+
+        // It succeeds if the control duration has passed
+        skip(controlDuration + 1);
+        vm.expectEmit(false, false, false, true, address(ethPlays));
+        emit ButtonInput(1, bob, 4);
         ethPlays.submitButtonInput(4);
     }
 

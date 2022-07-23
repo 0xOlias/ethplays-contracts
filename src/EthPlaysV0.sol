@@ -74,8 +74,10 @@ contract EthPlaysV0 is Ownable {
     uint256 public controlDuration;
     /// @notice [State] The best bid for the current control auction
     ControlBid private bestControlBid;
-    /// @notice [State] The block timestamp of the start of the current control auction
-    uint256 public controlAuctionTimestamp;
+    /// @notice [State] The block timestamp of the start of the latest control auction
+    uint256 public controlAuctionStartTimestamp;
+    /// @notice [State] The block timestamp of the end of the latest control auction
+    uint256 public controlAuctionEndTimestamp;
     /// @notice [State] The account that has (or most recently had) control
     address public controlAddress;
 
@@ -115,7 +117,7 @@ contract EthPlaysV0 is Ownable {
     error GameNotActive();
     error AccountNotRegistered();
     error InvalidButtonIndex();
-    error OtherPlayerHasControl();
+    error AnotherPlayerHasControl();
     error AlreadyVotedForThisInput();
     error AlignmentVoteCooldown();
 
@@ -161,17 +163,17 @@ contract EthPlaysV0 is Ownable {
 
         alignmentVoteCooldown = 30;
         alignmentDecayRate = 985;
-        chaosVoteReward = 50e18;
+        chaosVoteReward = 40e18;
 
         orderDuration = 20;
         chaosInputRewardCooldown = 30;
 
-        chaosInputReward = 10e18;
-        orderInputReward = 10e18;
+        chaosInputReward = 20e18;
+        orderInputReward = 20e18;
         chatCost = 20e18;
         rareCandyCost = 200e18;
 
-        controlAuctionDuration = 300;
+        controlAuctionDuration = 90;
         controlDuration = 30;
         bestControlBid = ControlBid(address(0), 0);
     }
@@ -221,10 +223,10 @@ contract EthPlaysV0 is Ownable {
             revert InvalidButtonIndex();
         }
 
-        if (block.timestamp <= controlAuctionTimestamp + controlDuration) {
+        if (block.timestamp <= controlAuctionEndTimestamp + controlDuration) {
             // Control
             if (msg.sender != controlAddress) {
-                revert OtherPlayerHasControl();
+                revert AnotherPlayerHasControl();
             }
 
             inputTimestamp = block.timestamp;
@@ -327,12 +329,12 @@ contract EthPlaysV0 is Ownable {
     {
         // This is the first bid in the auction, so set controlAuctionStartTimestamp.
         if (bestControlBid.from == address(0)) {
-            controlAuctionTimestamp = block.timestamp;
+            controlAuctionStartTimestamp = block.timestamp;
         }
 
         // The auction is over (it must be ended).
         if (
-            block.timestamp > controlAuctionTimestamp + controlAuctionDuration
+            block.timestamp > controlAuctionStartTimestamp + controlAuctionDuration
         ) {
             revert AuctionIsOver();
         }
@@ -357,7 +359,7 @@ contract EthPlaysV0 is Ownable {
     /// @notice End the current control auction and start the cooldown for the next one.
     function endControlAuction() external onlyActive {
         if (
-            block.timestamp < controlAuctionTimestamp + controlAuctionDuration
+            block.timestamp < controlAuctionStartTimestamp + controlAuctionDuration
         ) {
             revert AuctionInProgress();
         }
@@ -369,6 +371,7 @@ contract EthPlaysV0 is Ownable {
         emit Control(bestControlBid.from);
         controlAddress = bestControlBid.from;
         bestControlBid = ControlBid(address(0), 0);
+        controlAuctionEndTimestamp = block.timestamp;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -441,3 +444,37 @@ contract EthPlaysV0 is Ownable {
         emit SetControlDuration(_controlDuration);
     }
 }
+
+
+
+/*
+controlAuctionStartTimestamp = 0
+controlAuctionEndTimestamp = 0
+
+submitControlBid()
+    1) if there are no bids
+        set controlAuctionTimestamp (start the auction)
+    2) else if timestamp > controlAuctionTimestamp + controlAuctionDuration
+        revert because the auction is over
+    3) set the new best bid, emit NewControlBid event, transfer tokens
+
+endControlAuction()
+    1) if there are no bids
+        revert because the auction has not started yet
+    2) if timestamp < controlAuctionTimestamp + controlAuctionDuration
+        revert because the auction is in progress
+    3) reset the best bid, emit Control event, transfer tokens, set controlAuctionEndTimestamp
+    
+if controlEndTimestamp > controlStartTimestamp
+    auction not started, submit a bid to start it
+
+if timestamp < controlStartTimestamp + controlAuctionDuration
+    auction is in progress
+
+if timestamp > controlStartTimestamp + controlAuctionDuration
+    auction is over, waiting for endControlAuction()
+
+if timestamp < controlAuctionEndTimestamp + controlDuration
+    control is active
+
+*/
