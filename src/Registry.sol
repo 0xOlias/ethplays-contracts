@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-/// @title Mainnet registration contract for EthPlays
+/// @title Registration contract for ethplays
 /// @author olias.eth
 /// @notice This is experimental software, use at your own risk.
 contract Registry is Ownable {
@@ -11,98 +12,111 @@ contract Registry is Ownable {
     /*                                   STORAGE                                  */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Boolean indicating if registration is currently active
+    bool public isActive = true;
+    /// @notice Registration fee amount in ether
+    uint256 public registrationFee = 0.1 ether;
+
     /// @notice Registered account addresses by burner account address
     mapping(address => address) public accounts;
     /// @notice Burner account addresses by registered account address
     mapping(address => address) public burnerAccounts;
 
-    /// @notice Registration fee amount in ether
-    uint256 public registrationFeeAmount;
-
     /* -------------------------------------------------------------------------- */
     /*                                   EVENTS                                   */
     /* -------------------------------------------------------------------------- */
 
-    event Register(address account, address burnerAccount);
-    event UpdateBurnerAccount(address account, address burnerAccount);
+    event NewRegistration(address account, address burnerAccount);
+    event UpdatedRegistration(address account, address burnerAccount);
 
     /* -------------------------------------------------------------------------- */
     /*                                   ERRORS                                   */
     /* -------------------------------------------------------------------------- */
 
-    error BurnerAccountTaken();
-    error AlreadyRegistered();
-    error NotYetRegistered();
-    error InsufficientRegistrationFee();
+    error RegistrationNotActive();
+    error BurnerAccountAlreadyRegistered();
+    error AccountAlreadyRegistered();
+    error AccountNotRegistered();
+    error IncorrectRegistrationFee();
 
     /* -------------------------------------------------------------------------- */
-    /*                               INITIALIZATION                               */
+    /*                                 MODIFIERS                                  */
     /* -------------------------------------------------------------------------- */
 
-    constructor() {
-        registrationFeeAmount = 0.01 ether;
+    /// @notice Requires the game to be active
+    modifier onlyActive() {
+        if (!isActive) {
+            revert RegistrationNotActive();
+        }
+        _;
     }
 
     /* -------------------------------------------------------------------------- */
     /*                                REGISTRATION                                */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Register for EthPlays.
-    /// @param burnerAccount The address of the burner account to be registered.
-    function register(address burnerAccount) external payable {
+    /// @notice Register for ethplays!
+    /// @param burnerAccount The address of the burner account to be registered
+    function register(address burnerAccount) external payable onlyActive {
         if (accounts[burnerAccount] != address(0)) {
-            revert BurnerAccountTaken();
+            revert BurnerAccountAlreadyRegistered();
         }
 
         if (burnerAccounts[msg.sender] != address(0)) {
-            revert AlreadyRegistered();
+            revert AccountAlreadyRegistered();
         }
 
-        if (msg.value < registrationFeeAmount) {
-            revert InsufficientRegistrationFee();
+        if (msg.value != registrationFee) {
+            revert IncorrectRegistrationFee();
         }
 
         accounts[burnerAccount] = msg.sender;
         burnerAccounts[msg.sender] = burnerAccount;
 
-        emit Register(msg.sender, burnerAccount);
+        emit NewRegistration(msg.sender, burnerAccount);
     }
 
-    /// @notice Update registered burner account address.
-    /// @param burnerAccount The address of the new burner account to be registered.
-    function updateBurnerAccount(address burnerAccount) external {
+    /// @notice Update the burner account address for a registered account
+    /// @param burnerAccount The address of the new burner account to be registered
+    function updateBurnerAccount(address burnerAccount) external onlyActive {
         if (accounts[burnerAccount] != address(0)) {
-            revert BurnerAccountTaken();
+            revert BurnerAccountAlreadyRegistered();
         }
 
         if (burnerAccounts[msg.sender] == address(0)) {
-            revert NotYetRegistered();
+            revert AccountNotRegistered();
         }
 
         accounts[burnerAccount] = msg.sender;
         burnerAccounts[msg.sender] = burnerAccount;
 
-        emit UpdateBurnerAccount(msg.sender, burnerAccount);
+        emit UpdatedRegistration(msg.sender, burnerAccount);
     }
 
     /* -------------------------------------------------------------------------- */
     /*                                   ADMIN                                    */
     /* -------------------------------------------------------------------------- */
 
-    function setRegistrationFeeAmount(uint256 _registrationFeeAmount) external onlyOwner {
-        registrationFeeAmount = _registrationFeeAmount;
+    function setIsActive(bool _isActive) external onlyOwner {
+        isActive = _isActive;
     }
 
-    // ???
-    // function withdrawEther(address withdrawToAccount) external onlyOwner {
-    //     _account.call{value: this.value}()
-    // }
+    function setRegistrationFee(uint256 _registrationFee) external onlyOwner {
+        registrationFee = _registrationFee;
+    }
 
-    // function withdrawERC20(address withdrawToAccount, address token) external onlyOwner {
-    //     _account.call{value: this.value}()
-    // }
+    /* -------------------------------------------------------------------------- */
+    /*                                 WITHDRAWAL                                 */
+    /* -------------------------------------------------------------------------- */
 
-    // function withdrawERC721(address withdrawToAccount, address token) external onlyOwner {
-    //     _account.call{value: this.value}()
-    // }
+    function withdrawAll(address withdrawTo) external onlyOwner {
+        payable(withdrawTo).transfer(address(this).balance);
+    }
+
+    function withdrawAllERC20(address withdrawTo, IERC20 erc20Token)
+        external
+        onlyOwner
+    {
+        erc20Token.transfer(withdrawTo, erc20Token.balanceOf(address(this)));
+    }
 }

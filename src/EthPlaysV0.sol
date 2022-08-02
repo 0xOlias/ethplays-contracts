@@ -26,7 +26,7 @@ contract EthPlaysV0 is Ownable {
     /// @notice [Contract] The POKE token contract
     Poke public poke;
     /// @notice [Contract] The EthPlays registry contract
-    RegistryReceiverV0 public registry;
+    RegistryReceiverV0 public registryReceiver;
 
     /// @notice [Parameter] Indicates if the game is currently active
     bool public isActive;
@@ -145,7 +145,7 @@ contract EthPlaysV0 is Ownable {
 
     /// @notice Requires the sender to be a registered account.
     modifier onlyRegistered() {
-        if (!registry.isRegistered(msg.sender)) {
+        if (!registryReceiver.isRegistered(msg.sender)) {
             revert AccountNotRegistered();
         }
         _;
@@ -155,9 +155,9 @@ contract EthPlaysV0 is Ownable {
     /*                               INITIALIZATION                               */
     /* -------------------------------------------------------------------------- */
 
-    constructor(address pokeAddress, address registryAddress) {
-        poke = Poke(pokeAddress);
-        registry = RegistryReceiverV0(registryAddress);
+    constructor(Poke _poke, RegistryReceiverV0 _registryReceiver) {
+        poke = _poke;
+        registryReceiver = _registryReceiver;
 
         isActive = true;
 
@@ -334,7 +334,8 @@ contract EthPlaysV0 is Ownable {
 
         // The auction is over (it must be ended).
         if (
-            block.timestamp > controlAuctionStartTimestamp + controlAuctionDuration
+            block.timestamp >
+            controlAuctionStartTimestamp + controlAuctionDuration
         ) {
             revert AuctionIsOver();
         }
@@ -359,7 +360,8 @@ contract EthPlaysV0 is Ownable {
     /// @notice End the current control auction and start the cooldown for the next one.
     function endControlAuction() external onlyActive {
         if (
-            block.timestamp < controlAuctionStartTimestamp + controlAuctionDuration
+            block.timestamp <
+            controlAuctionStartTimestamp + controlAuctionDuration
         ) {
             revert AuctionInProgress();
         }
@@ -444,8 +446,6 @@ contract EthPlaysV0 is Ownable {
         emit SetControlDuration(_controlDuration);
     }
 }
-
-
 
 /*
 controlAuctionStartTimestamp = 0

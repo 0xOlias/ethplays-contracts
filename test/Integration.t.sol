@@ -10,7 +10,7 @@ import {EthPlaysV0} from "src/EthPlaysV0.sol";
 contract IntegrationTest is Test {
     // Test storage
     Poke poke;
-    RegistryReceiverV0 registry;
+    RegistryReceiverV0 registryReceiver;
     EthPlaysV0 ethPlays;
 
     address deployer;
@@ -41,9 +41,9 @@ contract IntegrationTest is Test {
     function setUp() public {
         deployer = address(this);
         poke = new Poke();
-        registry = new RegistryReceiverV0();
-        ethPlays = new EthPlaysV0(address(poke), address(registry));
-        poke.updateGameAddress(address(ethPlays));
+        registryReceiver = new RegistryReceiverV0();
+        ethPlays = new EthPlaysV0(poke, registryReceiver);
+        poke.setGameAddress(address(ethPlays));
         vm.roll(1);
         skip(1000);
 
@@ -59,9 +59,9 @@ contract IntegrationTest is Test {
     }
 
     function registerAccounts() public {
-        registry.submitRegistration(address(10), alice);
-        registry.submitRegistration(address(20), bob);
-        registry.submitRegistration(address(30), charlie);
+        registryReceiver.submitRegistration(address(10), alice);
+        registryReceiver.submitRegistration(address(20), bob);
+        registryReceiver.submitRegistration(address(30), charlie);
     }
 
     function mine() public {
@@ -76,9 +76,12 @@ contract IntegrationTest is Test {
     }
 
     function testInitialParameters() public {
-        assertEq(poke.gameContract(), address(ethPlays));
+        assertEq(poke.gameAddress(), address(ethPlays));
         assertEq(address(ethPlays.poke()), address(poke));
-        assertEq(address(ethPlays.registry()), address(registry));
+        assertEq(
+            address(ethPlays.registryReceiver()),
+            address(registryReceiver)
+        );
 
         assertEq(ethPlays.isActive(), true);
         assertEq(ethPlays.alignmentVoteCooldown(), 30);
@@ -283,9 +286,6 @@ contract IntegrationTest is Test {
         emit Control(bob);
         ethPlays.endControlAuction();
     }
-
-    // TODO: testSubmitButtonInputOrder()
-    // TODO: testSubmitButtonInputControl()
 
     // TODO: testSubmitChat()
     // TODO: testSubmitRareCandies()

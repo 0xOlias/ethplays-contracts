@@ -13,13 +13,13 @@ contract Poke is ERC20, Ownable {
     /* -------------------------------------------------------------------------- */
 
     /// @notice Address of the current game contract
-    address public gameContract;
+    address public gameAddress;
 
     /* -------------------------------------------------------------------------- */
     /*                                   EVENTS                                   */
     /* -------------------------------------------------------------------------- */
 
-    event UpdateGameContract(address gameContract);
+    event SetGameAddress(address gameAddress);
 
     /* -------------------------------------------------------------------------- */
     /*                                   ERRORS                                   */
@@ -31,9 +31,9 @@ contract Poke is ERC20, Ownable {
     /*                                 MODIFIERS                                  */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Requires the sender to be  the game contract
-    modifier onlyGameContract() {
-        if (msg.sender != gameContract) {
+    /// @notice Requires the sender to be the game contract
+    modifier onlyGameAddress() {
+        if (msg.sender != gameAddress) {
             revert NotAuthorized();
         }
         _;
@@ -54,7 +54,7 @@ contract Poke is ERC20, Ownable {
     /// @param amount The amount of tokens to mint
     function gameMint(address account, uint256 amount)
         external
-        onlyGameContract
+        onlyGameAddress
     {
         _mint(account, amount);
     }
@@ -64,7 +64,7 @@ contract Poke is ERC20, Ownable {
     /// @param amount The amount of tokens to burn
     function gameBurn(address account, uint256 amount)
         external
-        onlyGameContract
+        onlyGameAddress
     {
         _burn(account, amount);
     }
@@ -77,7 +77,7 @@ contract Poke is ERC20, Ownable {
         address from,
         address to,
         uint256 amount
-    ) external onlyGameContract {
+    ) external onlyGameAddress {
         _transfer(from, to, amount);
     }
 
@@ -86,8 +86,9 @@ contract Poke is ERC20, Ownable {
     /* -------------------------------------------------------------------------- */
 
     /// @notice Update the game contract address. Only owner.
-    /// @param addr The address of the game contract
-    function updateGameAddress(address addr) external onlyOwner {
-        gameContract = addr;
+    /// @param _gameAddress The address of the active game
+    function setGameAddress(address _gameAddress) external onlyOwner {
+        gameAddress = _gameAddress;
+        emit SetGameAddress(_gameAddress);
     }
 }

@@ -19,24 +19,24 @@ contract PokeTest is Test {
     }
 
     function testInitialGameAddress() public {
-        assertEq(poke.gameContract(), address(0));
+        assertEq(poke.gameAddress(), address(0));
     }
 
     function testUpdateGameAddressAsOwner() public {
         hoax(deployer);
-        poke.updateGameAddress(address(5));
-        assertEq(poke.gameContract(), address(5));
+        poke.setGameAddress(address(5));
+        assertEq(poke.gameAddress(), address(5));
     }
 
     function testUpdateGameAddressAsNotOwner() public {
         hoax(bob);
         vm.expectRevert("Ownable: caller is not the owner");
-        poke.updateGameAddress(address(5));
+        poke.setGameAddress(address(5));
     }
 
     function testMintAsGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(bob);
         poke.gameMint(alice, 1e18);
@@ -45,7 +45,7 @@ contract PokeTest is Test {
 
     function testMintAsNotGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(alice);
         vm.expectRevert(Poke.NotAuthorized.selector);
@@ -54,7 +54,7 @@ contract PokeTest is Test {
 
     function testBurnAsGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(bob);
         poke.gameMint(alice, 3e18);
@@ -65,7 +65,7 @@ contract PokeTest is Test {
 
     function testBurnAsNotGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(alice);
         vm.expectRevert(Poke.NotAuthorized.selector);
@@ -74,7 +74,7 @@ contract PokeTest is Test {
 
     function testTransferAsGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(bob);
         poke.gameMint(alice, 3e18);
@@ -86,7 +86,7 @@ contract PokeTest is Test {
 
     function testTransferAsNotGameContract() public {
         hoax(deployer);
-        poke.updateGameAddress(bob);
+        poke.setGameAddress(bob);
 
         hoax(alice);
         vm.expectRevert(Poke.NotAuthorized.selector);
