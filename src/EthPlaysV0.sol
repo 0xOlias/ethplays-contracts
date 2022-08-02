@@ -161,7 +161,7 @@ contract EthPlaysV0 is Ownable {
 
         isActive = true;
 
-        alignmentVoteCooldown = 30;
+        alignmentVoteCooldown = 60;
         alignmentDecayRate = 985;
         chaosVoteReward = 40e18;
 

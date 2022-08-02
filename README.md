@@ -19,14 +19,14 @@ An ownable contract that defines the game logic. This includes button presses, o
 
 The following actions mint/burn the POKE token:
 - Submit a button press (mints 20 POKE to the sender, minting is rate-limited to once per 30 seconds)
-- Submit an alignment vote for chaos (mints 20 POKE to the sender, players can only vote for alignment once per minute)
+- Submit an alignment vote for chaos (mints 40 POKE to the sender, players can only vote for alignment once per minute)
 - Submit a message to the chat (burns 20 POKE)
 - Purchase rare candies (burns 200 POKE per rare candy)
 - Submit a control bid (burns the bid amount of POKE, mints the previous best bid amount to the previous best bid sender)
 
 #### Auction mechanics
 
-EthPlays defines a simple auction mechanism using the POKE token. Players can submit bids (in POKE) to take control of the game for 30 seconds. The auction lasts 90 seconds, and once ended, the next auction begins immeidately. If a player submits a bid that beats the previous bid, the POKE amount from the previous bid is minted back to the the sender of that bid. The POKE amount of the winning bid gets burned.
+EthPlays defines a simple auction mechanism using the POKE token. Players can submit bids (in POKE) to take control of the game for 30 seconds. The auction lasts 90 seconds, and once ended, the next auction begins immediately. If a player submits a bid that beats the previous bid, the POKE amount from the previous bid is minted back to the the sender of that bid. The POKE amount of the winning bid gets burned.
 
 Auction state:
 - controlAuctionStartTimestamp
@@ -54,6 +54,6 @@ An ownable contract storing registration data. `EthPlays` calls the public `isRe
 
 ### Offchain relayer/faucet
 
-There is an offchain web service that responds to `Register` events emitted by the `Registry` contract on mainnet and does two things:
+There is an offchain web service that responds to `NewRegistration` and `UpdatedRegistration` events emitted by the `Registry` contract on mainnet and does two things:
 * Calls the `submitRegistration(address,address)` method on `RegistryReceiver` with the account/burner account from the `Register` event.
 * Sends faucet funds to the burner account specified in the `Register` event.

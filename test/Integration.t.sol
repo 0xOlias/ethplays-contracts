@@ -84,7 +84,7 @@ contract IntegrationTest is Test {
         );
 
         assertEq(ethPlays.isActive(), true);
-        assertEq(ethPlays.alignmentVoteCooldown(), 30);
+        assertEq(ethPlays.alignmentVoteCooldown(), 60);
         assertEq(ethPlays.alignmentDecayRate(), 985);
         assertEq(ethPlays.chaosVoteReward(), 40e18);
 
