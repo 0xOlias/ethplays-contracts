@@ -14,7 +14,7 @@ contract Deploy is Test {
     Poke poke;
     EthPlaysV0 ethPlays;
 
-    function run() external {
+    function testDeploy() external {
         registry = new Registry();
         assertEq(registry.isActive(), true);
         assertEq(registry.registrationFee(), 0.1 ether);
